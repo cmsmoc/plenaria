@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plenária Deliberativa | 11ª CMS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Georama:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Georama', 'sans-serif'] }, colors: { cms: { 'azul-sus': '#1A5EA8', 'azul-wave': '#0D3D6B', 'verde-sus': '#3AAA35', 'amarelo': '#F5C800', 'vermelho': '#DC2626' } } } } }
+    </script>
+    <style>
+        body { background-color: #08213D; color: white; overflow: hidden; } 
+        .drawer-bottom { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .drawer-bottom.open { transform: translateY(0); }
+        .fade { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); } ::-webkit-scrollbar-thumb { background: #1A5EA8; border-radius: 4px; }
+        .highlight-text { background-color: rgba(245, 200, 0, 0.2); border-left: 4px solid #F5C800; padding: 2px 8px; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col font-sans relative">
+
+    <header class="p-6 flex justify-between items-center border-b border-white/10 shrink-0 bg-black/20">
+        <div class="flex items-center gap-4">
+            <span class="bg-cms-amarelo text-cms-azul-wave font-black px-4 py-2 rounded-lg uppercase tracking-widest text-sm shadow-sm"><i class="ph-bold ph-users-three"></i> Plenária Final</span>
+            <span class="text-white/60 font-bold tracking-widest uppercase text-sm" id="progress-indicator">Carregando Fila...</span>
+        </div>
+        <div class="flex gap-4">
+            <button onclick="desfazerUltimo()" id="btn-desfazer" class="hidden items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-colors"><i class="ph-bold ph-arrow-u-up-left text-lg"></i> Desfazer Último Voto</button>
+            <button onclick="carregarFila()" class="items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-colors"><i class="ph-bold ph-arrows-clockwise text-lg"></i> Sincronizar</button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col justify-center items-center p-8 md:p-12 relative z-10" id="slide-area">
+        <div id="loading-state" class="flex flex-col items-center justify-center h-full w-full">
+            <i class="ph-bold ph-spinner animate-spin text-6xl text-cms-amarelo mb-4"></i>
+            <h2 class="text-2xl font-bold text-white/80">A carregar a próxima proposta...</h2>
+        </div>
+
+        <div id="content-state" class="max-w-6xl w-full text-center flex flex-col max-h-full hidden fade">
+            <div class="flex justify-center gap-3 mb-6 shrink-0 flex-wrap">
+                <span id="prop-id" class="bg-white/10 text-white font-mono px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest border border-white/20">ID</span>
+                <span id="prop-eixo" class="border border-cms-amarelo text-cms-amarelo px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest bg-cms-amarelo/10">Eixo</span>
+                <span id="prop-tema" class="bg-cms-azul-sus text-white px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest shadow-lg">Tema</span>
+            </div>
+
+            <h2 class="text-4xl md:text-5xl font-black text-white leading-tight mb-8 drop-shadow-lg shrink-0" id="prop-titulo">Título da Proposta</h2>
+
+            <div class="bg-white/5 border border-white/10 p-8 md:p-12 rounded-3xl backdrop-blur-sm mx-auto max-w-5xl w-full overflow-y-auto shrink shadow-2xl relative">
+                <i class="ph-fill ph-quotes absolute -top-4 -left-4 text-6xl text-white/5"></i>
+                <p class="text-2xl md:text-[28px] font-medium text-white/95 leading-relaxed text-left whitespace-pre-wrap" id="prop-texto">Texto da proposta aparecerá aqui.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer id="action-bar" class="p-6 bg-black/60 backdrop-blur-xl shrink-0 flex justify-center gap-4 md:gap-6 relative z-20 border-t border-white/10">
+        <button onclick="processarVoto('Rejeitada Totalmente', 'N/A')" class="flex items-center gap-2 bg-cms-vermelho hover:bg-red-700 text-white px-6 md:px-8 py-4 rounded-2xl font-black text-sm md:text-lg uppercase tracking-widest transition-transform hover:-translate-y-1 shadow-[0_4px_20px_rgba(220,38,38,0.3)]">
+            <i class="ph-bold ph-x text-2xl"></i> Rejeitar
+        </button>
+        
+        <button onclick="abrirEditor('alterar')" class="flex items-center gap-2 bg-[#2E8BC0] hover:bg-[#1A5EA8] text-white px-6 md:px-8 py-4 rounded-2xl font-black text-sm md:text-lg uppercase tracking-widest transition-transform hover:-translate-y-1 shadow-[0_4px_20px_rgba(46,139,192,0.3)]">
+            <i class="ph-bold ph-pencil-simple text-2xl"></i> Modificar Texto
+        </button>
+
+        <button onclick="abrirEditor('aglutinar')" class="flex items-center gap-2 bg-[#9A6500] hover:bg-cms-amarelo text-white px-6 md:px-8 py-4 rounded-2xl font-black text-sm md:text-lg uppercase tracking-widest transition-transform hover:-translate-y-1 shadow-[0_4px_20px_rgba(245,200,0,0.3)]">
+            <i class="ph-bold ph-git-merge text-2xl"></i> Aglutinar
+        </button>
+
+        <button onclick="processarVoto('Aprovada Sem Alterações', 'Municipal')" class="flex items-center gap-2 bg-cms-verde-sus hover:bg-[#1B7A30] text-white px-6 md:px-10 py-4 rounded-2xl font-black text-sm md:text-lg uppercase tracking-widest transition-transform hover:-translate-y-1 shadow-[0_4px_20px_rgba(58,170,53,0.4)]">
+            <i class="ph-bold ph-check text-2xl"></i> Aprovar (Municipal)
+        </button>
+    </footer>
+
+    <div id="editor-drawer" class="drawer-bottom fixed bottom-0 left-0 w-full h-[85vh] bg-white text-cms-texto shadow-[0_-20px_60px_rgba(0,0,0,0.5)] z-50 flex flex-col rounded-t-[32px] border-t-8 border-cms-amarelo">
+        
+        <div class="p-6 md:p-8 bg-cms-cinza-off border-b border-cms-borda flex justify-between items-center rounded-t-[24px] shrink-0">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-cms-amarelo rounded-full flex items-center justify-center shadow-inner"><i class="ph-fill ph-pencil-circle text-2xl text-cms-azul-wave"></i></div>
+                <div>
+                    <h3 class="text-2xl font-black text-cms-azul-wave uppercase tracking-tight" id="drawer-title">Ajuste da Plenária</h3>
+                    <p class="text-xs font-bold text-cms-medio uppercase tracking-widest"><span class="animate-pulse text-red-500">●</span> A editar ao vivo no telão</p>
+                </div>
+            </div>
+            <button onclick="fecharEditor()" class="bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 w-12 h-12 rounded-full flex items-center justify-center transition-colors"><i class="ph-bold ph-x text-2xl"></i></button>
+        </div>
+        
+        <div class="flex-1 flex flex-col md:flex-row gap-6 p-6 md:p-8 overflow-hidden bg-white">
+            
+            <div id="aglutinar-panel" class="w-full md:w-[40%] flex flex-col border-r border-cms-borda pr-6 hidden">
+                <label class="block text-xs font-bold text-cms-azul-sus uppercase tracking-widest mb-3 flex items-center gap-2"><i class="ph-bold ph-list-magnifying-glass"></i> Propostas na Fila (Clique para juntar)</label>
+                <div class="relative mb-4 shrink-0">
+                    <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="search-aglutinar" placeholder="Pesquisar para aglutinar..." class="w-full pl-10 pr-4 py-2 border-[1.5px] border-cms-borda rounded-xl focus:ring-2 focus:ring-cms-azul-medio outline-none text-sm font-medium">
+                </div>
+                <div id="lista-aglutinar" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    </div>
+            </div>
+
+            <div class="flex-1 flex flex-col h-full relative">
+                <div class="flex gap-4 mb-4 shrink-0">
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Nível Final <span class="text-red-500">*</span></label>
+                        <select id="edit-nivel" class="w-full bg-cms-cinza-off border-[1.5px] border-cms-borda p-3 rounded-xl font-bold text-cms-texto outline-none focus:border-cms-azul-sus">
+                            <option value="Municipal" selected>Municipal</option>
+                            <option value="Estadual">Estadual (Apenas 4 por eixo)</option>
+                            <option value="Nacional">Nacional (Apenas 2 por eixo)</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Status Final</label>
+                        <select id="edit-decisao" class="w-full bg-cms-cinza-off border-[1.5px] border-cms-borda p-3 rounded-xl font-bold text-cms-texto outline-none focus:border-cms-azul-sus">
+                            <option value="Aprovada com Alterações">Aprovada com Alterações de Texto</option>
+                            <option value="Aglutinada na Plenária">Aprovada e Aglutinada</option>
+                            <option value="Rejeitada Parcialmente">Rejeitada Parcialmente</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col relative">
+                    <textarea id="edit-texto" class="w-full flex-1 p-6 bg-[#FEF8E7] border-2 border-[#F5C800]/50 rounded-2xl text-xl md:text-2xl font-medium leading-relaxed outline-none focus:border-[#F5C800] resize-none shadow-inner text-gray-800"></textarea>
+                    
+                    <div class="absolute bottom-4 right-4 text-[10px] font-bold text-gray-400 bg-white/80 px-2 py-1 rounded backdrop-blur-sm pointer-events-none">O que escrever aqui aparece no telão</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 bg-cms-cinza-off border-t border-cms-borda shrink-0 flex justify-end gap-4">
+            <button onclick="fecharEditor()" class="px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-gray-500 hover:bg-gray-200 transition-colors">Cancelar</button>
+            <button onclick="confirmarAjuste()" class="bg-cms-azul-sus hover:bg-cms-azul-wave text-white font-black text-lg uppercase tracking-widest px-10 py-4 rounded-xl shadow-lg transition-colors flex items-center gap-2">
+                <i class="ph-bold ph-floppy-disk"></i> Gravar Decisão
+            </button>
+        </div>
+    </div>
+
+    <div id="saving-overlay" class="fixed inset-0 bg-cms-azul-wave/90 z-[100] hidden items-center justify-center backdrop-blur-md">
+        <div class="text-center">
+            <i class="ph-bold ph-check-circle animate-pulse text-8xl text-cms-verde-sus mb-6 drop-shadow-[0_0_30px_rgba(58,170,53,0.5)]"></i>
+            <h2 class="text-3xl font-black text-white uppercase tracking-widest">A gravar voto na nuvem...</h2>
+        </div>
+    </div>
+
+    <script>
+        // ===============================================
+        // INSIRA O SEU LINK DA API AQUI
+        // ===============================================
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwEIpxZVXeEDqbGriqHEJzv-HmZfq8nETMAD4xcHs3Lpb6GM_sHSoW5_Mc0kSTJ2arYPw/exec';
+        
+        let filaPropostas = [];
+        let currentIndex = 0;
+        let propostasAglutinadas = []; // Guarda as propostas extras adicionadas no painel
+
+        document.addEventListener("DOMContentLoaded", carregarFila);
+
+        // 1. CARREGAR E EXIBIR A FILA
+        async function carregarFila() {
+            document.getElementById('loading-state').classList.remove('hidden');
+            document.getElementById('content-state').classList.add('hidden');
+            
+            try {
+                const response = await fetch(API_URL + "?action=get_fila&t=" + new Date().getTime());
+                const result = await response.json();
+                
+                if(result.success) {
+                    filaPropostas = result.fila;
+                    currentIndex = 0;
+                    if(filaPropostas.length > 0) {
+                        document.getElementById('loading-state').classList.add('hidden');
+                        document.getElementById('content-state').classList.remove('hidden');
+                        
+                        // O botão desfazer só aparece se houver histórico na sessão
+                        if(sessionStorage.getItem('last_voto')) document.getElementById('btn-desfazer').classList.remove('hidden');
+                        
+                        renderizarSlide();
+                    } else {
+                        document.getElementById('loading-state').innerHTML = `<i class="ph-fill ph-confetti text-8xl text-cms-verde-sus mb-6"></i><h2 class="text-3xl font-black text-white uppercase tracking-widest">Plenária Finalizada!</h2><p class="mt-4 text-white/70">Todas as propostas da fila foram votadas.</p>`;
+                    }
+                }
+            } catch(e) {
+                alert("Erro de rede ao sincronizar. Verifique a internet e tente novamente.");
+            }
+        }
+
+        function renderizarSlide() {
+            if(currentIndex >= filaPropostas.length) {
+                carregarFila(); // Recarrega para ver se alguém adicionou algo novo na folha
+                return;
+            }
+
+            const p = filaPropostas[currentIndex];
+            propostasAglutinadas = [p]; // A proposta principal é sempre a primeira da aglutinação
+            
+            document.getElementById('progress-indicator').innerText = `A debater ${currentIndex + 1} de ${filaPropostas.length}`;
+            document.getElementById('prop-id').innerText = p.id;
+            
+            let eixoCurto = p.eixo.split(':')[0];
+            document.getElementById('prop-eixo').innerText = eixoCurto;
+            document.getElementById('prop-tema').innerText = p.tema;
+            document.getElementById('prop-titulo').innerText = p.titulo;
+            document.getElementById('prop-texto').innerText = p.texto;
+
+            const contentState = document.getElementById('content-state');
+            contentState.classList.remove('fade');
+            void contentState.offsetWidth; // trigger reflow
+            contentState.classList.add('fade');
+        }
+
+        // 2. PAINEL LATERAL (MODIFICAR E AGLUTINAR)
+        function abrirEditor(modo) {
+            const p = filaPropostas[currentIndex];
+            const inputEdit = document.getElementById('edit-texto');
+            
+            inputEdit.value = document.getElementById('prop-texto').innerText;
+            
+            if (modo === 'aglutinar') {
+                document.getElementById('drawer-title').innerHTML = "Aglutinação de Plenária";
+                document.getElementById('edit-decisao').value = "Aglutinada na Plenária";
+                document.getElementById('aglutinar-panel').classList.remove('hidden');
+                document.getElementById('aglutinar-panel').classList.add('flex');
+                renderListaAglutinar();
+            } else {
+                document.getElementById('drawer-title').innerHTML = "Ajuste de Texto";
+                document.getElementById('edit-decisao').value = "Aprovada com Alterações";
+                document.getElementById('aglutinar-panel').classList.add('hidden');
+                document.getElementById('aglutinar-panel').classList.remove('flex');
+            }
+
+            document.getElementById('editor-drawer').classList.add('open');
+            
+            // Magia: Espelha o que a relatora escreve no telão em tempo real
+            inputEdit.oninput = (e) => { document.getElementById('prop-texto').innerText = e.target.value; };
+        }
+
+        function fecharEditor() {
+            document.getElementById('editor-drawer').classList.remove('open');
+            // Se cancelar, volta o texto original da proposta para o telão
+            document.getElementById('prop-texto').innerText = filaPropostas[currentIndex].texto;
+            propostasAglutinadas = [filaPropostas[currentIndex]]; // Reseta aglutinações
+        }
+
+        // 3. LÓGICA DE AGLUTINAÇÃO (Lista da Esquerda)
+        function renderListaAglutinar() {
+            const domList = document.getElementById('lista-aglutinar');
+            const q = document.getElementById('search-aglutinar').value.toLowerCase();
+            domList.innerHTML = '';
+            
+            // Não mostra a proposta atual na lista
+            const outrasPropostas = filaPropostas.filter((p, idx) => idx !== currentIndex);
+            
+            outrasPropostas.forEach(p => {
+                if(q && !p.texto.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q)) return;
+                
+                const jaAdicionada = propostasAglutinadas.find(ag => ag.id === p.id);
+                
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border ${jaAdicionada ? 'bg-[#E8F8EC] border-cms-verde-sus' : 'bg-white border-cms-borda hover:border-cms-azul-sus'} cursor-pointer transition-colors`;
+                card.onclick = () => toggleAglutinacao(p);
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[9px] font-black font-mono px-2 py-0.5 rounded bg-gray-200 text-gray-700">${p.id}</span>
+                        ${jaAdicionada ? '<i class="ph-fill ph-check-circle text-cms-verde-sus"></i>' : '<i class="ph-bold ph-plus text-gray-400"></i>'}
+                    </div>
+                    <p class="text-[11px] font-medium text-gray-600 line-clamp-2">${p.texto}</p>
+                `;
+                domList.appendChild(card);
+            });
+        }
+
+        document.getElementById('search-aglutinar').addEventListener('input', renderListaAglutinar);
+
+        function toggleAglutinacao(p) {
+            const idx = propostasAglutinadas.findIndex(ag => ag.id === p.id);
+            const inputEdit = document.getElementById('edit-texto');
+            
+            if (idx > -1) {
+                // Remove
+                propostasAglutinadas.splice(idx, 1);
+                // Retira do texto da caixa (tentativa simples)
+                inputEdit.value = inputEdit.value.replace(`\n\n[+ ${p.id}]: ${p.texto}`, '');
+            } else {
+                // Adiciona
+                propostasAglutinadas.push(p);
+                inputEdit.value += `\n\n[+ ${p.id}]: ${p.texto}`;
+            }
+            
+            // Dispara o evento de input para o telão atualizar
+            inputEdit.dispatchEvent(new Event('input'));
+            renderListaAglutinar();
+        }
+
+        // 4. GRAVAÇÃO DE VOTOS NO GOOGLE SHEETS
+        function confirmarAjuste() {
+            const decisao = document.getElementById('edit-decisao').value;
+            const nivel = document.getElementById('edit-nivel').value;
+            document.getElementById('editor-drawer').classList.remove('open');
+            processarVoto(decisao, nivel);
+        }
+
+        async function processarVoto(decisao, nivel) {
+            const overlay = document.getElementById('saving-overlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+
+            const pPrincipal = filaPropostas[currentIndex];
+            const textoFinal = document.getElementById('prop-texto').innerText;
+            
+            // Se aglutinou, pega as linhas originais de todas. Se não, só da principal.
+            const linhasOrigem = propostasAglutinadas.map(p => p.linha);
+            const idsOrigem = propostasAglutinadas.map(p => p.id).join(', ');
+
+            const payload = {
+                action: 'votar',
+                proposta: {
+                    linhas_origem: linhasOrigem, // Array de linhas para marcar como Processado
+                    ids_origem: idsOrigem,       // Ex: PROPOSTA-001, PROPOSTA-045
+                    eixo: pPrincipal.eixo,
+                    tema: pPrincipal.tema,
+                    titulo: pPrincipal.titulo,
+                    texto: textoFinal,
+                    decisao: decisao,
+                    nivel: nivel
+                }
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                
+                if(result.success) {
+                    // Guarda na sessão para poder desfazer
+                    sessionStorage.setItem('last_voto', result.idFinal);
+                    document.getElementById('btn-desfazer').classList.remove('hidden');
+                    
+                    currentIndex++;
+                    // Se a relatora aglutinou as próximas propostas da fila,
+                    // é mais seguro recarregar a fila inteira para elas sumirem da lista local.
+                    if (propostasAglutinadas.length > 1) {
+                        carregarFila(); 
+                    } else {
+                        renderizarSlide();
+                    }
+                } else {
+                    alert("Erro ao gravar no Google Sheets. Tente novamente.");
+                }
+            } catch(e) {
+                alert("Falha na rede. O voto não foi computado.");
+            } finally {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+
+        // 5. BOTÃO DE EMERGÊNCIA (DESFAZER)
+        async function desfazerUltimo() {
+            if(!confirm("Atenção: Tem a certeza que deseja desfazer a última votação? A proposta voltará para a fila.")) return;
+            
+            const overlay = document.getElementById('saving-overlay');
+            overlay.classList.remove('hidden'); overlay.classList.add('flex');
+            overlay.querySelector('h2').innerText = "A desfazer...";
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'desfazer' })
+                });
+                const result = await response.json();
+                
+                if(result.success) {
+                    sessionStorage.removeItem('last_voto');
+                    document.getElementById('btn-desfazer').classList.add('hidden');
+                    carregarFila(); // Recarrega a fila para a proposta voltar
+                }
+            } catch(e) {
+                alert("Falha de rede ao tentar desfazer.");
+            } finally {
+                overlay.classList.add('hidden'); overlay.classList.remove('flex');
+                overlay.querySelector('h2').innerText = "A gravar voto na nuvem...";
+            }
+        }
+    </script>
+</body>
+</html>
